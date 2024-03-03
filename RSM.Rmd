@@ -1,0 +1,189 @@
+---
+title: "Residual Surface Methodology"
+author: "Collins Kipkorir"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# CODING OF DATA
+
+We begin by first installing rsm package (if not installed) and load it.
+
+```{r package}
+#Install and load package
+#install.packages("rsm")
+library(rsm)
+```
+
+The package contains a data set called ChemReact1, load and view the sample data.
+
+```{r sample data}
+ChemReact1
+```
+
+This dataframe contains the variables Time and Temperature are continuous independent variables and Yield is a continuous dependent variable.
+
+We will use coded.data to code them as x1 and x2, respectively:
+
+```{r}
+#name of the coded variable ~ linear expression fir the uncoded variable
+CR1 <- coded.data(ChemReact1, x1 ~ (Time - 85)/5, 
+                  x2 ~ (Temp - 175)/5)
+CR1
+```
+
+The dataframe looks very similar to how they were presented in the original, ChemReact1 dataframe, but see they are internally Time and Temp are internally understood by R as x1 and x2. This can be witnessed if CR1 is coerced into a standard dataframe:
+
+```{r}
+as.data.frame(CR1)
+```
+
+This is important so that the dataframe is compatible with downstream rsm package functions.
+
+# Generating a design
+
+Function for creating a Box-Behnken design - bbd
+
+Function for creating a central composite design - ccd
+
+## Box-Behnken design
+
+Create a 3-factor Box-Behnken design with two center points:
+
+```{r}
+bbd(3, n0 = 2, coding =list(x1 ~ (Force - 20)/3, x2 ~ (Rate - 50)/10, x3 ~ Polish - 4))
+```
+
+This example of an experiment has 3 variables (x1, x2, and x3). The experiment is randomized.
+
+If there were a 4th or 5th variable, then the design would be blocked (default setting) and the blocks would be individually randomized
+
+## Central composite design
+
+CCD is a popular design because it allows the experimenter to iterizatively improve a system through optimization experiments
+
+One could first experiment with a single block for a first-order model and then add more block(s) if necessray to perform a second-order model fit
+
+There are two types of CCD blocks
+
+-   Cube block - has design points from a two-level factorial or fractional factorial design plus center points
+
+    -best predictions are found within the confines of these points
+
+    -Used to estimate main effects and two factor interactions
+
+-   Star block - contains axis points and center points
+
+    -Used to estimate quadratic effects
+
+## FITTING A RESPONSE SURFACE MODEL
+
+The rsm function must make use of the following arguments:
+
+-   FO() - first order
+
+-   TWI() - two-way intereaction
+
+-   PQ() - pure quadratic
+
+-   SO() - second order
+
+Fit first order response-surface model to the data in the first block;
+
+```{r}
+CR1.rsm <- rsm(Yield ~ FO(x1, x2), data = CR1)
+summary(CR1.rsm)
+
+```
+
+-    The summary of this model indicates that there is a significant lack of fit (p = 0.01034)
+
+-   This suggests that it may be a good idea to test a higher order model
+
+Model with two-way interactions:
+
+```{r}
+CR1.rsmi <- update(CR1.rsm, . ~ . + TWI(x1, x2))
+summary(CR1.rsmi)
+```
+
+The p-value for the lack of fit test is still very small (p = 0.005221). To investigate further, more data is needed so we can combine two blocks of the greater ChemReact experiment (ChemReact1 + ChemReact2):
+
+```{r}
+(CR2 <- djoin(CR1, ChemReact2))
+```
+
+The larger dataset allows us to fit a full second-order model to the data. This can be accomplished by using the following code:
+
+```{r}
+CR2.rsm <- rsm(Yield ~ Block + SO(x1, x2), data = CR2)
+summary(CR2.rsm)
+```
+
+-   In this model, the lack of fit is not significant (p = 0.6851)
+
+-   The stationary point values are like the coordinates for the center of the plot
+
+-   In the Eigen analysis, both eigenvalues are negative
+
+This is indicative that the stationary point is a maximum
+
+This is an ideal situation in which the optimal conditions for this system are in close range of the stationary point
+
+The next step would be to collect more data around this estimated optimum point when
+
+Time = 86.86148 min
+
+Temp = 176.67190 C
+
+## Visualization with a contour and perspective plot
+
+```{r}
+#par(mfrow = c(1,1))
+contour(CR2.rsm, ~ x1 + x2, image = TRUE, at = summary(
+  CR2.rsm)$canonical$xs)
+```
+
+```{r}
+persp(CR2.rsm, x2 ~ x1, col = terrain.colors(50), 
+      contours = 'colors', zlab = "Yield", main="Second-order model")
+```
+
+## Direction for further experimentation
+
+-   In many first-order and some second-order cases, we find that the saddle point or stationary point is far from the optimal experimental region
+
+-   If this is the case then the most practical the next is to determine where in which direction to investigate further
+
+-   This is a facet of RSM called direction of steepest ascent
+
+The rsm summary table provides information about this concept and we can zoom into that using the steepest function:
+
+```{r}
+#dataframe to access and distance
+steepest(CR1.rsm,dist = c(0,0.5,1))
+```
+
+-   yhat is the predicted value of the response variable in the model
+
+-   any set of distances can be factored in using the dist argument
+
+-   However, while the fitted values are displayed, remember that these are only predictions
+
+-   As the distance along the path increases, the predictions become less reliable
+
+-   The real use case of the path of steepest ascent is to determine the next set of experiments to get close to the optimal experimental conditions
+
+-   For a second-order model, the steepest function works, but it employs the \'ridge analysis method\' which is a type of analog of the steepest ascent
+
+-   In this method, for a specified distance, d, a point at which the predicted response is a maximum among all predictor combinations at radius d can be determined
+
+-   It is sensible to use this method when the stationary point is somewhat far away \
+    \
+
+
+    \

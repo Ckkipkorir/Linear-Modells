@@ -1,0 +1,47 @@
+setwd("D:/CUK WORK/Degree/Notes/Linear Models II/R")
+#Load data file 
+CCD1<-read.csv("ccd.csv", header = T)
+head(CCD1)
+#Load the rsm package, if not installed first install it
+library(rsm)
+
+#Relationship between coded and natural variables.
+CCD1 <- as.coded.data(CCD1,
+                      x1~ (Time - 85)/5,
+                      x2 ~ (Temp - 175)/5)
+str(CCD1)
+
+#Regression model for yield
+#Second order model
+model_y <- rsm(Yield ~ FO(x1,x2)+TWI(x1,x2)+PQ(x1,x2), data = CCD1)
+summary(model_y)
+
+#Remove the interaction term that is not significant.
+model_y <- rsm(Yield ~ FO(x1,x2)+PQ(x1,x2), data = CCD1)
+summary(model_y)
+
+#Residual plots
+par(mfrow = c(2,2)) #create a grid of 2 by 2 for plots
+plot(CCD1$Yield, model_y$residuals)+
+  abline(h=0, col="gray75")
+plot(model_y$fitted.values, model_y$residuals)+
+  abline(h=0, col="gray75")
+plot(CCD1$x1, model_y$residuals)+
+  abline(h=0, col="gray75")
+plot(CCD1$x2, model_y$residuals)+
+  abline(h=0, col="gray75")
+
+#Contour/perspective plots
+par(mfrow=c(1,1))
+contour(model_y, ~x1+x2,
+        image = T,
+        yaxp = c(168,182,2),
+        xlabs = c("Time(min)", "Temperature"))
+points(CCD1$Time,CCD1$Temp)
+persp(model_y, x1~x2, col = terrain.colors(50), contours = "colors",
+      zlab = "Yield",
+      xlabs =c("Time(min)", "Temperature"))
+#Predicting the yeild at the stationary point
+max<- data.frame(x1 = 0.361, x2=0.257)
+predict(model_y, max)
+
